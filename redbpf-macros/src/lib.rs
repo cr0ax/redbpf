@@ -770,3 +770,20 @@ pub fn task_iter(attrs: TokenStream, item: TokenStream) -> TokenStream {
 
     probe_impl("task_iter", attrs, wrapper, name)
 }
+
+/// Attribute macro for defining global variables in probes
+///
+/// **NOTE** It is not required to use it when global variables are accessed
+/// only inside probes. But it has to used if global variables are also
+/// accessed by userspace program.
+#[proc_macro_attribute]
+pub fn global(_attrs: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemStatic);
+    let section_name = format!("globals/{}", item.ident.to_string());
+    quote! {
+        #[no_mangle]
+        #[link_section = #section_name]
+        #item
+    }
+    .into()
+}

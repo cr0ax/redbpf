@@ -15,6 +15,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use redbpf::{load::Loader, Array, PerCpuArray};
 
+use probes::global_var::{GLOBAL_VAR, GLOBAL_VAR_INCORRECT};
 #[repr(C)]
 #[derive(Debug, Clone)]
 struct Data {
@@ -39,19 +40,22 @@ async fn main() {
         .expect("kprobe_mut error")
         .attach_kprobe("ksys_write", 0)
         .expect("error attach_kprobe");
-    let global = Array::<Data>::new(loaded.map(".bss").expect("map not found"))
-        .expect("can not initialize Array");
+
+    let gvar = loaded
+        .global::<u64>("GLOBAL_VAR")
+        .expect("error on accessing gvar");
+    let gvar_wo_sync = loaded
+        .global::<u64>("GLOBAL_VAR_INCORRECT")
+        .expect("error on accessing gvar-wo-sync ");
     let percpu_map =
         PerCpuArray::<u64>::new(loaded.map("PERCPU_MAP").expect("PERCPU_MAP not found"))
             .expect("can not initialize PerCpuArray");
-
     loop {
-        let gval = global.get(0).expect("global var value");
         let pcpu_val = percpu_map.get(0).expect("percpu value");
         println!(
             "w/ sync, w/o sync, pcpu = {}, {}, {}",
-            gval.var,
-            gval.var_wo_sync,
+            gvar.load().unwrap(),
+            gvar_wo_sync.load().unwrap(),
             pcpu_val.iter().sum::<u64>()
         );
         select! {
